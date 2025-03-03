@@ -88,8 +88,6 @@ void pim_init_host(struct pim_host* host, uint32_t socket_id) {
     host->short_flow_token_q = create_ring("tx_short_flow_token_q", 1500, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
     host->long_flow_token_q = create_ring("tx_long_flow_token_q", 1500, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
     host->send_token_q = create_ring("send_token_q", 1500, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
-
-    // printf("pim_flow_size:%u\n", sizeof(pim_flow) + RTE_PKTMBUF_HEADROOM);
 }
 
 void pim_host_dump(struct pim_host* host, struct pim_pacer* pacer) {
@@ -174,14 +172,7 @@ struct rte_mbuf* p) {
         return;
     }
     if(ipv4_hdr->dst_addr != rte_cpu_to_be_32(params.ip)) {
-        // printf("packet type: %u\n", pim_hdr->type);
-        // printf("source addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
-        // printf("dst addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
-        // printf("ip addr: %u\n", params.ip);
-        // printf("ether addr same: %u\n",is_same_ether_addr(&ether_hdr->d_addr,&params.dst_ethers[0]));
-
         rte_pktmbuf_free(p);
-        // return;
         rte_exit(EXIT_FAILURE, "recieve wrong packets\n");
     }
     // parse packet
@@ -778,13 +769,7 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
     struct pim_flow* exist_flow = lookup_table_entry(host->rx_flow_table, pim_flow_sync_hdr->flow_id);
     // send back flow sync ack
     pim_send_flow_sync_ack(pacer, ether_hdr, ipv4_hdr, pim_flow_sync_hdr);
-   // printf("receive rts:%d\n", pim_flow_sync_hdr->flow_id);
-    if(exist_flow != NULL && exist_flow->_f.size_in_pkt > params.small_flow_thre) {
-        //pflow_dump(exist_flow);
-        //printf("long flow send twice RTS");
-        //rte_exit(EXIT_FAILURE, "Twice RTS for long flow");
-    	return;
-    }
+    // printf("receive rts:%d\n", pim_flow_sync_hdr->flow_id);
     if(exist_flow != NULL) {
         return;
     }

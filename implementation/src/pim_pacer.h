@@ -22,7 +22,6 @@ struct pim_pacer {
 	// except token
 	struct rte_ring* ctrl_q;
 	struct rte_ring* data_q;
-	// struct rte_ring* data_q;
 	uint64_t remaining_bytes;
 	uint64_t last_update_time;
 	struct rte_timer data_timer;
@@ -36,6 +35,5 @@ struct pim_pacer {
 void pim_init_pacer(struct pim_pacer* pacer, struct pim_host * host, uint32_t socket_id);
 void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void* arg);
 void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* arg);
-void pim_pacer_send_pkts(struct pim_pacer* pacer);
 void update_time_byte(struct pim_pacer* pacer);
 #endif

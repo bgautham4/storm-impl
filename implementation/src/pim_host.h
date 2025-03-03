@@ -83,8 +83,6 @@ struct pim_host{
 	struct rte_mempool *tx_flow_pool;
 	struct rte_hash *dst_minflow_table;
 	struct rte_hash *src_minflow_table;
-
-	// struct rte_ring * control_message_q;
 	struct rte_hash * tx_flow_table;
 	uint32_t finished_flow;
 	uint32_t sent_bytes;
@@ -96,7 +94,6 @@ struct pim_host{
 	uint32_t num_token_sent;
 	// min large flow
 	struct rte_ring *temp_pkt_buffer;
-	// struct rte_ring * control_message_q;
 	struct rte_ring *short_flow_token_q;
 	struct rte_ring *long_flow_token_q;
 	struct rte_ring *send_token_q;
