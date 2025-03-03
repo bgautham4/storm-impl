@@ -42,8 +42,9 @@ struct pim_flow_sync_ack_hdr {
 
 struct pim_rts_hdr {
 	uint32_t epoch;
-	uint8_t iter;
 	uint32_t remaining_sz;
+	uint8_t iter;
+	uint8_t num_reqs_sent; // Receiver informs sender on how many RTS(s) it sent out. 
 };
 
 struct pim_grant_hdr {

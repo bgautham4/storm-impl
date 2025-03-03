@@ -120,7 +120,7 @@ void pim_host_dump(struct pim_host* host, struct pim_pacer* pacer);
 struct rte_mbuf* pim_get_grantr_pkt(struct ether_hdr* ether_hdr, struct ipv4_hdr* ipv4_hdr, int iter, int epoch);
 struct rte_mbuf* pim_get_grant_pkt(struct pim_rts* pim_rts, int iter, int epoch, bool prompt);
 struct rte_mbuf* pim_get_accept_pkt(struct pim_grant* pim_grant, int iter, int epoch);
-struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch);
+struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch, int num_rts_sent);
 
 void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer);
 void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer);

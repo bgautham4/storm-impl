@@ -328,7 +328,7 @@ struct rte_mbuf* pim_get_accept_pkt(struct pim_grant* pim_grant, int iter, int e
     return p;
 }
 
-struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
+struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch, int num_rts_sent) {
     struct rte_mbuf* p = NULL;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
@@ -356,6 +356,7 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
     pim_rts_hdr->epoch = epoch;
     pim_rts_hdr->iter = iter;
     pim_rts_hdr->remaining_sz = pflow_remaining_pkts(flow);
+    pim_rts_hdr->num_reqs_sent = num_rts_sent;
     // add_pim_rts_hdr(p, &pim_rts_hdr);
     return p;
 }
@@ -621,6 +622,8 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
     int32_t position = 0;
     uint32_t next = 0;
     Pq *pq;
+    struct pim_flow* candidate_flows[50]; //WARN: Hardcoded value for max num of possible flows
+    int count = 0;
     while(1) {
 
         position = rte_hash_iterate(host->src_minflow_table,(const void**) &src_addr, (void**)&pq, &next);
@@ -635,10 +638,14 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
         // printf("flow src ip: %u\n", smallest_flow->_f.src_addr);
         // printf("flow dst ip:%u\n", smallest_flow->_f.dst_addr);
         if(smallest_flow != NULL) {
-            struct rte_mbuf *p = pim_get_rts_pkt(smallest_flow, pim_epoch->iter, pim_epoch->epoch);
-            // rte_eth_tx_burst(get_port_by_ip(smallest_flow->_f.dst_addr) ,0, &p, 1);
-     	    enqueue_ring(pacer->ctrl_q, p);
+            candidate_flows[count++] = smallest_flow;
         } 
+    }
+    struct rte_mbuf *p;
+    int num_rts_sent = count;
+    while(--count >= 0) {
+        p = pim_get_rts_pkt(candidate_flows[count], pim_epoch->iter, pim_epoch->epoch, num_rts_sent); 
+        enqueue_ring(pacer->ctrl_q, p);
     }
 }
 
