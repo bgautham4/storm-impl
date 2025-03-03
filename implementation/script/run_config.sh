@@ -37,12 +37,12 @@ ms1332)
 # set up the server
 for addr in  "${ssh_array[@]}";
 	do 
-		ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "git clone https://github.com/Terabit-Ethernet/dcPIM.git; cd ~/dcPIM/implementation;"
+		ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519_clab -p 22 artifact@$addr.utah.cloudlab.us "git clone https://github.com/bgautham4/storm-impl.git;"
 	done
 
 for addr in  "${ssh_array[@]}";
 	do 
-		ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "cd ~/dcPIM/implementation; chmod +x run.sh;bash ./run.sh $num_host" &
+		ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519_clab -p 22 artifact@$addr.utah.cloudlab.us "cd ~/storm-impl/implementation; chmod +x run.sh;bash ./run.sh $num_host" &
 	done
 
 sleep 240

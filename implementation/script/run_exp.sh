@@ -38,16 +38,16 @@ num_hosts=$2
 # run experiment
 for addr in  "${ssh_array[@]: 1 : $num_hosts}";
 	do 
-	 	ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "sudo killall pim; cd ~/dcPIM/implementation;sudo ./build/pim -- send CDF_$workload.txt > result_$workload.txt" &
+	 	ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519_clab -p 22 artifact@$addr.utah.cloudlab.us "sudo killall pim; cd ~/storm-impl/implementation;sudo ./build/pim -- send CDF_$workload.txt > result_$workload.txt" &
 	done
 
 sleep 20
 
-ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@ms1301.utah.cloudlab.us "sudo killall pim; cd ~/dcPIM/implementation;sudo ./build/pim -- start CDF_$workload.txt > result_$workload.txt" &
+ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519_clab -p 22 artifact@ms1301.utah.cloudlab.us "sudo killall pim; cd ~/storm-impl/implementation;sudo ./build/pim -- start CDF_$workload.txt > result_$workload.txt" &
 
 sleep 120
 
 for addr in  "${ssh_array[@]: 0 : $num_hosts}";
 	do 
-	 	ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "sudo killall pim" &
+	 	ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519_clab -p 22 artifact@$addr.utah.cloudlab.us "sudo killall pim" &
 	done
