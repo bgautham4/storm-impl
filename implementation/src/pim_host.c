@@ -1,4 +1,3 @@
-#include <cstdint>
 #include <math.h>
 #include <rte_bitmap.h>
 #include <rte_hash.h>

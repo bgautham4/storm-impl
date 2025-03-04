@@ -1,7 +1,6 @@
 #ifndef PIM_HOST_H
 #define PIM_HOST_H
 
-#include <cstdint>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdlib.h>
