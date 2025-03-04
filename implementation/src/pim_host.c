@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <math.h>
 #include <rte_bitmap.h>
 #include <rte_hash.h>
@@ -423,6 +424,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
             pim_rts->iter = pim_rts_hdr->iter;
             pim_rts->dst_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
             pim_rts->remaining_sz = pim_rts_hdr->remaining_sz;
+            pim_rts->num_rts_sent = pim_rts_hdr->num_reqs_sent;
             ether_addr_copy(&ether_hdr->s_addr, &pim_rts->dst_ether_addr);
             pim_epoch->rts_size++;
 
@@ -540,25 +542,8 @@ void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     // }
 }
 void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer) {
-    uint32_t index = 0;
     if(pim_epoch->match_dst_addr != 0) {
         return;
-    }
-    if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
-        if(pim_epoch->min_rts != NULL) {
-            struct rte_mbuf *p = pim_get_grant_pkt(pim_epoch->min_rts, pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_dst_addr == 0);
-            enqueue_ring(pacer->ctrl_q, p);
-            //rte_eth_tx_burst(get_port_by_ip(pim_epoch->min_rts->src_addr) ,0, &p, 1);
-        }
-    }
-    else {
-        if(pim_epoch->rts_size > 0) {
-            index =  (uint32_t)(rte_rand() % pim_epoch->rts_size);
-            struct rte_mbuf *p = pim_get_grant_pkt(&pim_epoch->rts_q[index], pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_dst_addr == 0);
-            enqueue_ring(pacer->ctrl_q, p);
-            // rte_eth_tx_burst(get_port_by_ip(pim_epoch->rts_q[index].src_addr) ,0, &p, 1);
-
-        }
     }
     pim_epoch->min_rts = NULL;
     pim_epoch->rts_size = 0;
@@ -566,7 +551,26 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     for(; i < PIM_NUM_HOST; i++) {
         pim_epoch->rts_bmp[i] = false;
     }
-
+    /*Find list of all requests with minimum number of available senders and send grant to one of them at random*/
+    if (pim_epoch->rts_size <= 0) {
+        return;
+    }
+    uint8_t min_req_count = pim_epoch->rts_q[0].num_rts_sent;
+    for (int i = 0; i < pim_epoch->rts_size; ++i) {
+        if (min_req_count > pim_epoch->rts_q[i].num_rts_sent) {
+            min_req_count = pim_epoch->rts_q[i].num_rts_sent;
+        }
+    }
+    int min_indices[pim_epoch->rts_size]; 
+    int min_indices_count = 0;
+    for (int i = 0; i < pim_epoch->rts_size; ++i) {
+        if (pim_epoch->rts_q[i].num_rts_sent == min_req_count) {
+            min_indices[min_indices_count++] = i;
+        }
+    }
+    int min_index = min_indices[rand() % min_indices_count];
+    struct rte_mbuf *p = pim_get_grant_pkt(&pim_epoch->rts_q[min_index], pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_dst_addr == 0);
+    enqueue_ring(pacer->ctrl_q, p);
 }
 
 void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer) {

@@ -1,6 +1,7 @@
 #ifndef PIM_HOST_H
 #define PIM_HOST_H
 
+#include <cstdint>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -32,7 +33,7 @@ struct pim_rts {
     struct ether_addr dst_ether_addr;
     uint64_t cycles;
     int remaining_sz;
-
+    uint8_t num_rts_sent;
 };
 struct pim_grant {
     bool prompt;
