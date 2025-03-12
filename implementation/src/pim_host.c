@@ -5,8 +5,14 @@
 #include "config.h"
 #include "ds.h"
 #include "pim_host.h"
+#include "header.h"
 #include "pim_pacer.h"
-
+#include "pq.h"
+#include "rte_byteorder.h"
+#include "rte_debug.h"
+#include <assert.h>
+#include <stdint.h>
+#include "utils.h"
 
 extern struct rte_mempool* pktmbuf_pool;
 
@@ -38,6 +44,7 @@ void pim_init_epoch(struct pim_epoch* pim_epoch, struct pim_host* pim_host, stru
     pim_epoch->min_rts = NULL;
     pim_epoch->min_grant = NULL;
     pim_epoch->prompt = false;
+    pim_epoch->permit_q_size = 0;
     rte_timer_init(&pim_epoch->epoch_timer);
     uint32_t i;
     for(i = 0; i < params.pim_iter_limit; i++) {
@@ -182,6 +189,10 @@ struct rte_mbuf* p) {
     } else if(pim_hdr->type == PIM_FLOW_SYNC_ACK) {
         struct pim_flow_sync_ack_hdr *pim_flow_sync_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_ack_hdr*, offset);
         pim_cancel_rtx_flow_sync(host, pim_flow_sync_ack_hdr->flow_id);
+    } else if (pim_hdr->type == PIM_RTS_PERMIT) {
+
+        epoch->permit_q[epoch->permit_q_size++] = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+
     } else if(pim_hdr->type == PIM_RTS) {
         struct pim_rts_hdr *pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, offset);
         pim_receive_rts(epoch, ether_hdr, ipv4_hdr, pim_rts_hdr);
@@ -358,6 +369,35 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch, int
     pim_rts_hdr->remaining_sz = pflow_remaining_pkts(flow);
     pim_rts_hdr->num_reqs_sent = num_rts_sent;
     // add_pim_rts_hdr(p, &pim_rts_hdr);
+    return p;
+}
+
+/*
+Create a pim_permit packet for given destination ip address:
+ETHERNET_FRAME|IP_HEADER|PIM_HDR(val=PIM_RTS_PERMIT)|
+*/
+struct rte_mbuf* pim_get_permit_pkt(uint32_t dst_addr) {
+    struct rte_mbuf* p = NULL;
+    p = rte_pktmbuf_alloc(pktmbuf_pool);
+    size_t pkt_size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
+                sizeof(struct pim_hdr);
+    if(p == NULL) {
+
+        printf("%s: Pktbuf pool full\n", __func__);
+        rte_exit(EXIT_FAILURE ,"Pktbuf full");
+    }
+    rte_pktmbuf_append(p, pkt_size);
+    int index = (dst_addr & 0xFF) - (params.dst_ips[0] & 0xFF);
+    assert(index >= 0);
+    add_ether_hdr(p, &params.dst_ethers[index]);
+    struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
+                sizeof(struct ether_hdr));
+    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
+    ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
+    ipv4_hdr->dst_addr = rte_cpu_to_be_32(dst_addr);
+    ipv4_hdr->total_length = rte_cpu_to_be_16(pkt_size - sizeof(struct ether_hdr));
+    pim_hdr->type = PIM_RTS_PERMIT;
     return p;
 }
 
@@ -620,33 +660,26 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
     if(pim_epoch->match_src_addr != 0){
         return;
     }
-    uint32_t* src_addr = 0;
     int32_t position = 0;
     uint32_t next = 0;
     Pq *pq;
     struct pim_flow* candidate_flows[50]; //WARN: Hardcoded value for max num of possible flows
-    int count = 0;
-    while(1) {
+    int num_rts_sent = 0;
 
-        position = rte_hash_iterate(host->src_minflow_table,(const void**) &src_addr, (void**)&pq, &next);
-
-        if(position == -ENOENT) {
-            break;
+    for (int i = 0; i < pim_epoch->permit_q_size; ++i) {
+        pq = lookup_table_entry(host->src_minflow_table, pim_epoch->permit_q[i]);
+        if (pq == NULL) {
+            continue;
         }
-        
         struct pim_flow* smallest_flow = get_smallest_unfinished_flow(pq);
-
-        // printf("smallest flow size:%u\n", smallest_flow->_f.size);
-        // printf("flow src ip: %u\n", smallest_flow->_f.src_addr);
-        // printf("flow dst ip:%u\n", smallest_flow->_f.dst_addr);
-        if(smallest_flow != NULL) {
-            candidate_flows[count++] = smallest_flow;
-        } 
+        if (smallest_flow != NULL) {
+            candidate_flows[num_rts_sent++] = smallest_flow;
+        }
     }
+
     struct rte_mbuf *p;
-    int num_rts_sent = count;
-    while(--count >= 0) {
-        p = pim_get_rts_pkt(candidate_flows[count], pim_epoch->iter, pim_epoch->epoch, num_rts_sent); 
+    for (int i = 0; i < num_rts_sent; ++i) {
+        p = pim_get_rts_pkt(candidate_flows[i], pim_epoch->iter, pim_epoch->epoch, num_rts_sent); 
         enqueue_ring(pacer->ctrl_q, p);
     }
 }
@@ -666,18 +699,34 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
     // } 
 
     pim_handle_all_rts(pim_epoch, pim_host, pim_pacer);
+    //Clear old permits
+    pim_epoch->permit_q_size = 0;
 
-    
-    // uint64_t end_cycle = rte_get_tsc_cycles();
+    //Send out new permits
+    uint32_t *dst_addr;
+    Pq *pq;
+    uint32_t next = 0;
+    uint32_t receiver_candidates[PIM_NUM_HOST];
+    int rc_size = 0;
+    int ret;
+    while (1) {
+        ret = rte_hash_iterate(pim_host->dst_minflow_table, (const void**)&dst_addr, (void**)&pq, &next);
+        if (ret == -ENOENT) {
+            break;
+        }
+        if (ret == -EINVAL) {
+            rte_panic("Invalid parameters supplied to rte_hash_iterate!");
+        }
+        if (!pq_isEmpty(pq)) {
+            receiver_candidates[rc_size++] = *dst_addr;
+        }
+    }
+    shuffle_inplace(receiver_candidates, rc_size, sizeof(uint32_t));
 
-    // double time = end_cycle - start_cycle;
- 
-    // if(time > 5000) {
-    //     printf("print epoch: %d iter: %d diff of cycles:%f\n", pim_epoch->epoch, pim_epoch->iter, time);
-    // }
-
-    // rte_timer_reset(&pim_epoch->sender_iter_timer, rte_get_timer_hz() * params.pim_iter_epoch,
-    //  SINGLE, rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)pim_timer_params);
+    for (int i = 0; i < rc_size && i < 2; ++i) {
+        struct rte_mbuf* permit_packet = pim_get_permit_pkt(receiver_candidates[i]);
+        enqueue_ring(pim_pacer->ctrl_q, permit_packet);
+    }
 
 }
 
@@ -694,7 +743,7 @@ void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* 
     pim_advance_iter(pim_epoch);
     if(pim_epoch->iter > params.pim_iter_limit) {
         pim_host->cur_match_src_addr = pim_epoch->match_src_addr;
-        pim_host->cur_match_dst_addr = pim_epoch->match_dst_addr;;
+        pim_host->cur_match_dst_addr = pim_epoch->match_dst_addr;
         pim_host->cur_epoch = pim_epoch->epoch;
         // pim_epoch->min_rts = NULL;
         pim_epoch->min_grant = NULL;
