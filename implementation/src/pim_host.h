@@ -58,6 +58,9 @@ struct pim_epoch {
 	struct pim_rts rts_q[PIM_NUM_HOST];
 	uint32_t grant_size;
 	uint32_t rts_size;
+	//Hold permit addresses
+	uint32_t permit_q[PIM_NUM_HOST];
+	int permit_q_size;
 	bool grant_bmp[PIM_NUM_HOST];
 	bool rts_bmp[PIM_NUM_HOST];
 	struct pim_rts* min_rts;

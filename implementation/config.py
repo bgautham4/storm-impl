@@ -69,16 +69,16 @@ def main():
 #include <rte_common.h>
 struct Params params = {{
     .index = {0},
-    .BDP = 20,
-    .small_flow_thre = 20,
+    .BDP = 773,
+    .small_flow_thre = 773,
     .mss = 1460,
     .priority_limit = 6,
     .bandwidth = 10000000000, //10Gbps
     .ip = {1},
-    .pim_beta = 5,
+    .pim_beta = 3,
     .pim_alpha = 1.1,
     .pim_iter_limit = 1,
-    .propagation_delay = 0.0000002,
+    .propagation_delay = 0.0000565,
     .clock_bias = 0.0000005,
     .send_port = 0,
     .pim_select_min_iters = 0,

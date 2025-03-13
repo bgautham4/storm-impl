@@ -19,6 +19,8 @@
 #define PIM_FLOW_SYNC_ACK 9
 // #define PIM_FIN_SYNC_ACK 10
 #define PIM_FIN_ACK 10
+//RTS_PERMIT packet to act as recurring notify packet.
+#define PIM_RTS_PERMIT 11
 #define MSS 1460
 
 // ------- PIM -----
@@ -49,8 +51,8 @@ struct pim_rts_hdr {
 
 struct pim_grant_hdr {
 	uint32_t epoch;
-	uint8_t iter;
 	uint32_t remaining_sz;
+	uint8_t iter;
 	uint8_t prompt;
 };
 
