@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include "utils.h"
+#include "tracing.h"
 
 extern struct rte_mempool* pktmbuf_pool;
 
@@ -571,6 +572,7 @@ void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, stru
             enqueue_ring(pacer->ctrl_q, p);
         } else {
             pim_epoch->match_dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+            incr_match_count(&match_cntr, pim_epoch->epoch);
         }
         //if(pim_epoch->iter > params.pim_iter_limit && host->cur_epoch == pim_epoch->epoch) {
          //   host->cur_match_src_addr = pim_epoch->match_src_addr;
@@ -602,6 +604,7 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
         int min_index = min_indices[rand() % min_indices_count];
         struct rte_mbuf *p = pim_get_grant_pkt(&pim_epoch->rts_q[min_index], pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_dst_addr == 0);
         enqueue_ring(pacer->ctrl_q, p);
+        incr_ctrl_packet_count(&ctrl_pkt_cntr, GRANT);
     }
     pim_epoch->min_rts = NULL;
     pim_epoch->rts_size = 0;
@@ -623,6 +626,7 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
             pim_epoch->match_src_addr = grant->src_addr;
             struct rte_mbuf *p = pim_get_accept_pkt(pim_epoch->min_grant, pim_epoch->iter, pim_epoch->epoch);
             enqueue_ring(pacer->ctrl_q, p);
+            incr_ctrl_packet_count(&ctrl_pkt_cntr, ACCEPT);
             // rte_eth_tx_burst(get_port_by_ip(grant->dst_addr) ,0, &p, 1);
 
         }
@@ -636,6 +640,7 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
                 pim_epoch->match_src_addr = grant->src_addr;
                 struct rte_mbuf *p = pim_get_accept_pkt(&pim_epoch->grants_q[index], pim_epoch->iter, pim_epoch->epoch);
                 enqueue_ring(pacer->ctrl_q, p);
+                incr_ctrl_packet_count(&ctrl_pkt_cntr, ACCEPT);
                 // rte_eth_tx_burst(get_port_by_ip(grant->dst_addr) ,0, &p, 1);
 
             }
@@ -681,6 +686,7 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
     for (int i = 0; i < num_rts_sent; ++i) {
         p = pim_get_rts_pkt(candidate_flows[i], pim_epoch->iter, pim_epoch->epoch, num_rts_sent); 
         enqueue_ring(pacer->ctrl_q, p);
+        incr_ctrl_packet_count(&ctrl_pkt_cntr, RTS);
     }
 }
 
@@ -726,6 +732,7 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
     for (int i = 0; i < rc_size && i < 2; ++i) {
         struct rte_mbuf* permit_packet = pim_get_permit_pkt(receiver_candidates[i]);
         enqueue_ring(pim_pacer->ctrl_q, permit_packet);
+        incr_ctrl_packet_count(&ctrl_pkt_cntr, PERMIT);
     }
 
 }
@@ -954,6 +961,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct p
     //push the packet
    // printf("send flow sync:%d\n", flow->_f.id);
     enqueue_ring(pacer->ctrl_q, p);
+    incr_ctrl_packet_count(&ctrl_pkt_cntr, SYNC);
 }
 
 void pim_send_flow_sync_ack(struct pim_pacer* pacer, struct ether_hdr* ether_hdr, 
@@ -989,6 +997,7 @@ void pim_send_flow_sync_ack(struct pim_pacer* pacer, struct ether_hdr* ether_hdr
     // //push the packet
 
     enqueue_ring(pacer->ctrl_q, p);
+    incr_ctrl_packet_count(&ctrl_pkt_cntr, SYNCS_ACK);
 }
 
 void pim_send_flow_fin_ack(struct pim_pacer* pacer, struct ether_hdr* ether_hdr, 
