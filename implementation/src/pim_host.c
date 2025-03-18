@@ -6,6 +6,7 @@
 #include "ds.h"
 #include "pim_host.h"
 #include "header.h"
+#include "pim_flow.h"
 #include "pim_pacer.h"
 #include "pq.h"
 #include "rte_byteorder.h"
@@ -144,7 +145,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
 	int ret =rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
             SINGLE, RECEIVE_CORE, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
 	// set timer for avoid PIM process for short flows
-        //cpflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
+        pflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
     } else {
         if(lookup_table_entry(host->dst_minflow_table, dst_addr) == NULL) {
             Pq* pq = rte_zmalloc("Prioirty Queue", sizeof(Pq), 0);
@@ -723,9 +724,22 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
         if (ret == -EINVAL) {
             rte_panic("Invalid parameters supplied to rte_hash_iterate!");
         }
-        if (!pq_isEmpty(pq)) {
+        //Check each elem in pq
+        struct pim_flow *candidate_flow;
+        rte_rwlock_read_lock(&pq->rw_lock);
+        Node *node = pq->head; 
+        while (node != NULL) {
+            node = node->next;
+            candidate_flow = (struct pim_flow *)node->data; 
+            if (!pflow_is_rd_ctrl_timeout_params_null(candidate_flow)) {
+                continue;
+            }
+            if (pflow_get_finish(candidate_flow) || pflow_get_finish_at_receiver(candidate_flow)) {
+                continue;
+            }
             receiver_candidates[rc_size++] = *dst_addr;
         }
+        rte_rwlock_read_unlock(&pq->rw_lock);
     }
     shuffle_inplace(receiver_candidates, rc_size, sizeof(uint32_t));
 
