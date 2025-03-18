@@ -738,6 +738,7 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
                 continue;
             }
             receiver_candidates[rc_size++] = *dst_addr;
+            break;
         }
         rte_rwlock_read_unlock(&pq->rw_lock);
     }
