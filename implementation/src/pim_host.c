@@ -729,8 +729,8 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
         rte_rwlock_read_lock(&pq->rw_lock);
         Node *node = pq->head; 
         while (node != NULL) {
-            node = node->next;
             candidate_flow = (struct pim_flow *)node->data; 
+            node = node->next;
             if (!pflow_is_rd_ctrl_timeout_params_null(candidate_flow)) {
                 continue;
             }
