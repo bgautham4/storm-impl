@@ -724,7 +724,11 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
         if (ret == -EINVAL) {
             rte_panic("Invalid parameters supplied to rte_hash_iterate!");
         }
-        //Check each elem in pq
+        /*
+        Check each elem in pq, if pq has
+        a viable candidate flow(is an incomplete long flow, or a timed out short flow), 
+        then this receiver can be sent a permit.
+        */
         struct pim_flow *candidate_flow;
         rte_rwlock_read_lock(&pq->rw_lock);
         Node *node = pq->head; 
@@ -737,7 +741,7 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
             if (pflow_get_finish(candidate_flow) || pflow_get_finish_at_receiver(candidate_flow)) {
                 continue;
             }
-            receiver_candidates[rc_size++] = *dst_addr;
+            receiver_candidates[rc_size++] = *dst_addr; //Found viable flow, so add to receiver list and break
             break;
         }
         rte_rwlock_read_unlock(&pq->rw_lock);
