@@ -675,11 +675,15 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
     for (int i = 0; i < pim_epoch->permit_q_size; ++i) {
         pq = lookup_table_entry(host->src_minflow_table, pim_epoch->permit_q[i]);
         if (pq == NULL) {
+            incr_ctrl_packet_count(&ctrl_pkt_cntr, WASTE_PERMIT);
             continue;
         }
         struct pim_flow* smallest_flow = get_smallest_unfinished_flow(pq);
         if (smallest_flow != NULL) {
             candidate_flows[num_rts_sent++] = smallest_flow;
+        }
+        else {
+            incr_ctrl_packet_count(&ctrl_pkt_cntr, WASTE_PERMIT);
         }
     }
 

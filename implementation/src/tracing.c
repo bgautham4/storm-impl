@@ -13,7 +13,7 @@ void incr_ctrl_packet_count(CtrlPacketCounter *cntr, ctrlpacket_t type) {
 // Dump ctrl packet counts onto stdout
 void dump_ctrl_packet_counts(const CtrlPacketCounter *cntr) {
 	const char *packet_names[NUM_CTRL_PACKET_TYPES] = {
-		"SYNC", "SYNC_ACK", "PERMIT", "RTS", "GRANT", "ACCEPT", "GRANTR"
+		"SYNC", "SYNC_ACK", "PERMIT", "RTS", "GRANT", "ACCEPT", "GRANTR", "WASTE_PERMIT"
 	};
 
 	printf("Control Packet Counts:\n");

@@ -2,7 +2,7 @@
 #define TRACING_H
 
 
-#define NUM_CTRL_PACKET_TYPES 7
+#define NUM_CTRL_PACKET_TYPES 8
 
 typedef enum ctrlpacket_t {
 	SYNC=0,
@@ -11,7 +11,8 @@ typedef enum ctrlpacket_t {
 	RTS,
 	GRANT,
 	ACCEPT,
-	GRANTR
+	GRANTR,
+	WASTE_PERMIT
 } ctrlpacket_t;
 
 /*
