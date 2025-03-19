@@ -729,22 +729,10 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
         a viable candidate flow(is an incomplete long flow, or a timed out short flow), 
         then this receiver can be sent a permit.
         */
-        struct pim_flow *candidate_flow;
-        rte_rwlock_read_lock(&pq->rw_lock);
-        Node *node = pq->head; 
-        while (node != NULL) {
-            candidate_flow = (struct pim_flow *)node->data; 
-            node = node->next;
-            if (!pflow_is_rd_ctrl_timeout_params_null(candidate_flow)) {
-                continue;
-            }
-            if (pflow_get_finish(candidate_flow) || pflow_get_finish_at_receiver(candidate_flow)) {
-                continue;
-            }
-            receiver_candidates[rc_size++] = *dst_addr; //Found viable flow, so add to receiver list and break
-            break;
+        struct pim_flow *candidate_flow = get_smallest_unfinished_flow(pq);
+        if (candidate_flow != NULL && candidate_flow->state == SYNC_ACK) {
+            receiver_candidates[rc_size++] = *dst_addr; //Found viable flow, so add to receiver list 
         }
-        rte_rwlock_read_unlock(&pq->rw_lock);
     }
     shuffle_inplace(receiver_candidates, rc_size, sizeof(uint32_t));
 
