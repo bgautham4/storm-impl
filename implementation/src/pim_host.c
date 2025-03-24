@@ -196,6 +196,7 @@ struct rte_mbuf* p) {
     } else if (pim_hdr->type == PIM_RTS_PERMIT) {
 
         epoch->permit_q[epoch->permit_q_size++] = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+        incr_ctrl_packet_count(&ctrl_pkt_cntr, PERMIT);
 
     } else if(pim_hdr->type == PIM_RTS) {
         struct pim_rts_hdr *pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, offset);
@@ -744,7 +745,6 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
     for (int i = 0; i < rc_size && i < 2; ++i) {
         struct rte_mbuf* permit_packet = pim_get_permit_pkt(receiver_candidates[i]);
         enqueue_ring(pim_pacer->ctrl_q, permit_packet);
-        incr_ctrl_packet_count(&ctrl_pkt_cntr, PERMIT);
     }
 
 }
