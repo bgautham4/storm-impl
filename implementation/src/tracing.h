@@ -12,11 +12,11 @@ typedef enum ctrlpacket_t {
 	GRANT,
 	ACCEPT,
 	GRANTR,
-	WASTE_PERMIT
+	WASTE_PERMIT //A PERMIT with no corresponding flow, Not a packet type but simply used for logging stats
 } ctrlpacket_t;
 
 /*
-For tracking number of control packets transmitted by each host
+For tracking number of control packets received by each host
 */
 typedef struct CtrlPacketCounter {
 	unsigned long packet_counts[NUM_CTRL_PACKET_TYPES];		 
