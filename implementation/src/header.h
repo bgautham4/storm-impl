@@ -95,6 +95,10 @@ struct pim_token_hdr{
 	uint32_t remaining_size;
 };
 
+struct pim_permit_hdr {
+	uint32_t epoch;
+};
+
 void parse_header(struct rte_mbuf* p, struct ipv4_hdr** ipv4_hdr, struct pim_hdr** pim_hdr);
 void add_ether_hdr(struct rte_mbuf* p, struct ether_addr* dst);
 // void add_ip_hdr(struct rte_mbuf* p, struct ipv4_hdr* ipv4_hdr);

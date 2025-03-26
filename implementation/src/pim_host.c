@@ -14,7 +14,9 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "rte_ip.h"
 #include "rte_malloc.h"
+#include "rte_mbuf.h"
 #include "rte_ring.h"
 #include "utils.h"
 #include "tracing.h"
@@ -221,7 +223,8 @@ struct rte_mbuf* p) {
 
         #ifndef NDEBUG
         char *msg = rte_malloc("MSG:LOG_PERMIT", 128, 0);
-        snprintf(msg, 128, "RX PERMIT %d.%d.%d.%d\n", src_addr >> 24 & 0xFF, src_addr >> 16 & 0xFF, src_addr >> 8 & 0xFF, src_addr & 0xFF);
+        struct pim_permit_hdr *phdr = rte_pktmbuf_mtod_offset(p, struct pim_permit_hdr *, offset); 
+        snprintf(msg, 128, "RX PERMIT %d.%d.%d.%d %d\n", src_addr >> 24 & 0xFF, src_addr >> 16 & 0xFF, src_addr >> 8 & 0xFF, src_addr & 0xFF, phdr->epoch);
         rte_ring_enqueue(message_ring, (void*)msg);
         #endif
 
@@ -233,7 +236,7 @@ struct rte_mbuf* p) {
         #ifndef NDEBUG
         uint32_t src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
         char *msg = rte_malloc("MSG:LOG_RTS", 128, 0);
-        snprintf(msg, 128, "RX RTS %d.%d.%d.%d\n", src_addr >> 24 & 0xFF, src_addr >> 16 & 0xFF, src_addr >> 8 & 0xFF, src_addr & 0xFF);
+        snprintf(msg, 128, "RX RTS %d.%d.%d.%d %d\n", src_addr >> 24 & 0xFF, src_addr >> 16 & 0xFF, src_addr >> 8 & 0xFF, src_addr & 0xFF, pim_rts_hdr->epoch);
         rte_ring_enqueue(message_ring, (void*)msg);
         #endif
 
@@ -245,7 +248,7 @@ struct rte_mbuf* p) {
         #ifndef NDEBUG
         uint32_t src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
         char *msg = rte_malloc("MSG:LOG_GRANT", 128, 0);
-        snprintf(msg, 128, "RX GRANT %d.%d.%d.%d\n", src_addr >> 24 & 0xFF, src_addr >> 16 & 0xFF, src_addr >> 8 & 0xFF, src_addr & 0xFF);
+        snprintf(msg, 128, "RX GRANT %d.%d.%d.%d %d\n", src_addr >> 24 & 0xFF, src_addr >> 16 & 0xFF, src_addr >> 8 & 0xFF, src_addr & 0xFF, pim_grant_hdr->epoch);
         rte_ring_enqueue(message_ring, (void*)msg);
         #endif
 
@@ -257,7 +260,7 @@ struct rte_mbuf* p) {
         #ifndef NDEBUG
         uint32_t src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
         char *msg = rte_malloc("MSG:LOG_ACCEPT", 128, 0);
-        snprintf(msg, 128, "RX ACCEPT %d.%d.%d.%d\n", src_addr >> 24 & 0xFF, src_addr >> 16 & 0xFF, src_addr >> 8 & 0xFF, src_addr & 0xFF);
+        snprintf(msg, 128, "RX ACCEPT %d.%d.%d.%d %d\n", src_addr >> 24 & 0xFF, src_addr >> 16 & 0xFF, src_addr >> 8 & 0xFF, src_addr & 0xFF, pim_accept_hdr->epoch);
         rte_ring_enqueue(message_ring, (void*)msg);
         #endif
 
@@ -438,7 +441,7 @@ struct rte_mbuf* pim_get_permit_pkt(uint32_t dst_addr) {
     struct rte_mbuf* p = NULL;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     size_t pkt_size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
-                sizeof(struct pim_hdr);
+                sizeof(struct pim_hdr) + sizeof(struct pim_permit_hdr);
     if(p == NULL) {
 
         printf("%s: Pktbuf pool full\n", __func__);
@@ -664,7 +667,7 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
         #ifndef NDEBUG
         char *msg = rte_malloc("MSG:SEND_GRANT", 128, 0);
         uint32_t dst_addr = pim_epoch->rts_q[min_index].dst_addr;
-        snprintf(msg, 128, "TX GRANT %d.%d.%d.%d\n", dst_addr >> 24 & 0xFF, dst_addr >> 16 & 0xFF, dst_addr >> 8 & 0xFF, dst_addr & 0xFF);
+        snprintf(msg, 128, "TX GRANT %d.%d.%d.%d %d\n", dst_addr >> 24 & 0xFF, dst_addr >> 16 & 0xFF, dst_addr >> 8 & 0xFF, dst_addr & 0xFF, pim_epoch->epoch);
         rte_ring_enqueue(message_ring, (void *)msg);
         #endif
 
@@ -705,7 +708,7 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
                 #ifndef NDEBUG
                 char *msg = rte_malloc("MSG:SEND_ACCEPT", 128, 0);
                 uint32_t dst_addr = pim_epoch->grants_q[index].src_addr;
-                snprintf(msg, 128, "TX ACCEPT %d.%d.%d.%d\n", dst_addr >> 24 & 0xFF, dst_addr >> 16 & 0xFF, dst_addr >> 8 & 0xFF, dst_addr & 0xFF);
+                snprintf(msg, 128, "TX ACCEPT %d.%d.%d.%d %d\n", dst_addr >> 24 & 0xFF, dst_addr >> 16 & 0xFF, dst_addr >> 8 & 0xFF, dst_addr & 0xFF, pim_epoch->epoch);
                 rte_ring_enqueue(message_ring, (void *)msg);
                 #endif
 
@@ -760,7 +763,7 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
         #ifndef NDEBUG
         uint32_t src_ip = candidate_flows[i]->_f.src_addr;
         char *msg = rte_malloc("MSG:TX_RTS", 128, 0);
-        snprintf(msg, 128, "TX RTS %d.%d.%d.%d\n", src_ip >> 24 & 0xFF, src_ip >> 16 & 0xFF, src_ip >> 8 & 0xFF, src_ip & 0xFF);
+        snprintf(msg, 128, "TX RTS %d.%d.%d.%d %d\n", src_ip >> 24 & 0xFF, src_ip >> 16 & 0xFF, src_ip >> 8 & 0xFF, src_ip & 0xFF, pim_epoch->epoch);
         rte_ring_enqueue(message_ring, (void *)msg);
         #endif
     }
@@ -818,11 +821,13 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
 
     for (int i = 0; i < rc_size && i < 2; ++i) {
         struct rte_mbuf* permit_packet = pim_get_permit_pkt(receiver_candidates[i]);
+        struct pim_permit_hdr *phdr = rte_pktmbuf_mtod_offset(permit_packet, struct pim_permit_hdr *, sizeof(struct ether_hdr) +  sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
+        phdr->epoch = pim_epoch->epoch;
         enqueue_ring(pim_pacer->ctrl_q, permit_packet);
         #ifndef NDEBUG
         char *msg = rte_malloc("MSG:SEND_PERMIT", 128, 0);
         uint32_t dst_addr = receiver_candidates[i];
-        snprintf(msg, 128, "TX PERMIT %d.%d.%d.%d\n", dst_addr >> 24 & 0xFF, dst_addr >> 16 & 0xFF, dst_addr >> 8 & 0xFF, dst_addr & 0xFF);
+        snprintf(msg, 128, "TX PERMIT %d.%d.%d.%d %d\n", dst_addr >> 24 & 0xFF, dst_addr >> 16 & 0xFF, dst_addr >> 8 & 0xFF, dst_addr & 0xFF, pim_epoch->epoch);
         rte_ring_enqueue(message_ring, (void *)msg);
         #endif
 
