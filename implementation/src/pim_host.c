@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "rte_malloc.h"
+#include "rte_ring.h"
 #include "utils.h"
 #include "tracing.h"
 
@@ -771,6 +772,11 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
     struct pim_host* pim_host = pim_timer_params->pim_host;
     struct pim_pacer* pim_pacer = pim_timer_params->pim_pacer;
 
+    #ifndef NDEBUG
+    char *msg = rte_malloc("LOG:SENDER_ITER", 128, 0);
+    snprintf(msg, 128, "xxxxSENDER_ITERxxxxx\n");
+    rte_ring_enqueue(message_ring, (void*)msg);
+    #endif
     if(pim_epoch->iter > params.pim_iter_limit) {
         return;
     }
@@ -830,7 +836,11 @@ void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* 
     struct pim_host* pim_host = pim_timer_params->pim_host;
     struct pim_pacer* pim_pacer = pim_timer_params->pim_pacer;
     // printf("%"PRIu64"receiver iter: %d epoch: %d\n", rte_get_tsc_cycles(), pim_epoch->iter, pim_epoch->epoch);
-
+    #ifndef NDEBUG
+    char *msg = rte_malloc("LOG:RECV_ITER", 128, 0);
+    snprintf(msg, 128, "xxxxRECV_ITERxxxxx\n");
+    rte_ring_enqueue(message_ring, (void*)msg);
+    #endif
     if(pim_epoch->iter > 0) {
         pim_handle_all_grant(pim_epoch, pim_host, pim_pacer);
     }
@@ -917,7 +927,7 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
     // pim_schedule_sender_iter_evt(&pim_epoch->sender_iter_timer, (void *)(&pim_epoch->pim_timer_params));
     #ifndef NDEBUG
     char *msg = rte_malloc("MSG:EPOCH_START", 128, 0);
-    snprintf(msg, 128, "---------Starting new epoch %d\n--------------", pim_epoch->epoch);
+    snprintf(msg, 128, "---------Starting new epoch %d--------------\n", pim_epoch->epoch);
     rte_ring_enqueue(message_ring, (void *)msg);
     #endif
 }
