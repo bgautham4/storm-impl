@@ -712,41 +712,6 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
     // } 
 
     pim_handle_all_rts(pim_epoch, pim_host, pim_pacer);
-    //Clear old permits
-    pim_epoch->permit_q_size = 0;
-
-    //Send out new permits
-    uint32_t *dst_addr;
-    Pq *pq;
-    uint32_t next = 0;
-    uint32_t receiver_candidates[PIM_NUM_HOST];
-    int rc_size = 0;
-    int ret;
-    while (1) {
-        ret = rte_hash_iterate(pim_host->dst_minflow_table, (const void**)&dst_addr, (void**)&pq, &next);
-        if (ret == -ENOENT) {
-            break;
-        }
-        if (ret == -EINVAL) {
-            rte_panic("Invalid parameters supplied to rte_hash_iterate!");
-        }
-        /*
-        Check each elem in pq, if pq has
-        a viable candidate flow(is an incomplete long flow, or a timed out short flow), 
-        then this receiver can be sent a permit.
-        */
-        struct pim_flow *candidate_flow = get_smallest_unfinished_flow(pq);
-        if (candidate_flow != NULL && candidate_flow->state == SYNC_ACK) {
-            receiver_candidates[rc_size++] = *dst_addr; //Found viable flow, so add to receiver list 
-        }
-    }
-    shuffle_inplace(receiver_candidates, rc_size, sizeof(uint32_t));
-
-    for (int i = 0; i < rc_size && i < 2; ++i) {
-        struct rte_mbuf* permit_packet = pim_get_permit_pkt(receiver_candidates[i]);
-        enqueue_ring(pim_pacer->ctrl_q, permit_packet);
-    }
-
 }
 
 void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* arg) {
@@ -783,15 +748,43 @@ void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* 
 
     if(pim_epoch->iter == 1 || (double)(start_cycle - pim_epoch->send_rts_cycle) >= epoch_size * 0.5) {
         pim_send_all_rts(pim_epoch, pim_host, pim_pacer);
-         // printf("diff epoch:%f epoch:%f\n", (double)(start_cycle - pim_epoch->send_rts_cycle), epoch_size * 1.5);
-    }
-    //  else {
-    //     printf("skip epoch: %d iter: %d diff of cycles:%f\n", pim_epoch->epoch, pim_epoch->iter, (double)(start_cycle - pim_epoch->send_rts_cycle));
 
-    // }
+        //Clear old permits
+        pim_epoch->permit_q_size = 0;
+        //Send out new permits
+        uint32_t *dst_addr;
+        Pq *pq;
+        uint32_t next = 0;
+        uint32_t receiver_candidates[PIM_NUM_HOST];
+        int rc_size = 0;
+        int ret;
+        while (1) {
+            ret = rte_hash_iterate(pim_host->dst_minflow_table, (const void**)&dst_addr, (void**)&pq, &next);
+            if (ret == -ENOENT) {
+                break;
+            }
+            if (ret == -EINVAL) {
+                rte_panic("Invalid parameters supplied to rte_hash_iterate!");
+            }
+            /*
+            Check each elem in pq, if pq has
+            a viable candidate flow(is an incomplete long flow, or a timed out short flow), 
+            then this receiver can be sent a permit.
+            */
+            struct pim_flow *candidate_flow = get_smallest_unfinished_flow(pq);
+            if (candidate_flow != NULL && candidate_flow->state == SYNC_ACK) {
+                receiver_candidates[rc_size++] = *dst_addr; //Found viable flow, so add to receiver list 
+            }
+        }
+        shuffle_inplace(receiver_candidates, rc_size, sizeof(uint32_t));
+
+        for (int i = 0; i < rc_size && i < 2; ++i) {
+            struct rte_mbuf* permit_packet = pim_get_permit_pkt(receiver_candidates[i]);
+            enqueue_ring(pim_pacer->ctrl_q, permit_packet);
+        }
+
+    }
     pim_epoch->send_rts_cycle = start_cycle;
-    // rte_timer_reset(&pim_epoch->receiver_iter_timer, rte_get_timer_hz() * params.pim_iter_epoch,
-    //  SINGLE, rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)pim_timer_params);
 }
 
 void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
